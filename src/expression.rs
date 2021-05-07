@@ -1,7 +1,7 @@
 use core::fmt;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Expr {
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),
@@ -11,27 +11,82 @@ pub enum Expr {
     Neg(Box<Expr>),
     Ln(Box<Expr>),
     Var(String),
-    Const(f32),
+    Const(f64),
 }
+
+use Expr::*;
 
 impl Expr {
     pub fn reduce(&self) -> Expr {
-        use Expr::*;
-
         match self {
-            Add(box Const(left), box Const(right)) => Const(left + right),
-            Sub(box Const(left), box Const(right)) => Const(left - right),
-            Mul(box Const(left), box Const(right)) => Const(left * right),
-            Div(box Const(left), box Const(right)) => Const(left / right),
-            Pow(box Const(left), box Const(right)) => Const(left.powf(*right)),
-            Neg(box Const(arg)) => Const(-arg),
-            _ => self.clone(),
+            Add(box left, box right) => Expr::reduce_add(left, right),
+            Sub(box left, box right) => Expr::reduce_sub(left, right),
+            Mul(box left, box right) => Expr::reduce_mul(left, right),
+            Div(box left, box right) => Expr::reduce_div(left, right),
+            Pow(box left, box right) => Expr::reduce_pow(left, right),
+            Ln(box arg) => Expr::reduce_ln(arg),
+            Neg(box arg) => Expr::reduce_neg(arg),
+            Var(_) | Const(_) => self.clone(),
+        }
+    }
+
+    fn reduce_add(left: &Expr, right: &Expr) -> Expr {
+        match (left.reduce(), right.reduce()) {
+            (Const(z), other) if z == 0.0 => other,
+            (other, Const(z)) if z == 0.0 => other,
+            (Const(left), Const(right)) => Const(left + right),
+            (left, right) => left + right,
+        }
+    }
+
+    fn reduce_sub(left: &Expr, right: &Expr) -> Expr {
+        match (left.reduce(), right.reduce()) {
+            (Const(left), Const(right)) => Const(left - right),
+            (left, right) => left - right,
+        }
+    }
+
+    fn reduce_mul(left: &Expr, right: &Expr) -> Expr {
+        match (left.reduce(), right.reduce()) {
+            (Const(z), _) if z == 0.0 => Const(0.0),
+            (_, Const(z)) if z == 0.0 => Const(0.0),
+            (Const(left), Const(right)) => Const(left * right),
+            (left, right) => left * right,
+        }
+    }
+
+    fn reduce_div(left: &Expr, right: &Expr) -> Expr {
+        match (left.reduce(), right.reduce()) {
+            (Const(left), Const(right)) => Const(left / right),
+            (left, right) => left / right,
+        }
+    }
+
+    fn reduce_pow(left: &Expr, right: &Expr) -> Expr {
+        match (left.reduce(), right.reduce()) {
+            (_, Const(z)) if z == 0.0 => Const(1.0),
+            (Const(z), _) if z == 0.0 => Const(0.0),
+            (left, Const(x)) if x == 1.0 => left,
+            (Const(left), Const(right)) => Const(left.powf(right)),
+            (left, right) => Pow(Box::new(left), Box::new(right)),
+        }
+    }
+
+    fn reduce_ln(arg: &Expr) -> Expr {
+        match arg.reduce() {
+            Const(arg) => Const(arg.ln()),
+            arg => Ln(Box::new(arg)),
+        }
+    }
+
+    fn reduce_neg(arg: &Expr) -> Expr {
+        match arg.reduce() {
+            Const(arg) => Const(-arg),
+            arg => -arg,
         }
     }
 
     pub fn derive(&self, var_name: &str) -> Expr {
-        use Expr::*;
-
         match self {
             Add(left, right) => left.derive(var_name) + right.derive(var_name),
             Sub(left, right) => left.derive(var_name) - right.derive(var_name),
@@ -56,8 +111,6 @@ impl Expr {
     }
 
     pub fn substitute(&self, var_name: &str, expr: &Expr) -> Expr {
-        use Expr::*;
-
         match self {
             Add(left, right) => left.substitute(var_name, expr) + right.substitute(var_name, expr),
             Sub(left, right) => left.substitute(var_name, expr) - right.substitute(var_name, expr),
@@ -144,18 +197,16 @@ impl Neg for &Expr {
     }
 }
 
-impl fmt::Display for Expr {
+impl fmt::Debug for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Expr::*;
-
         match self {
-            Add(left, right) => write!(f, "({} + {})", left, right),
-            Sub(left, right) => write!(f, "({} - {})", left, right),
-            Mul(left, right) => write!(f, "({} * {})", left, right),
-            Div(left, right) => write!(f, "({} / {})", left, right),
-            Pow(left, right) => write!(f, "({} ^ {})", left, right),
-            Neg(arg) => write!(f, "(-{})", arg),
-            Ln(arg) => write!(f, "ln({})", arg),
+            Add(left, right) => write!(f, "({:?} + {:?})", left, right),
+            Sub(left, right) => write!(f, "({:?} - {:?})", left, right),
+            Mul(left, right) => write!(f, "({:?} * {:?})", left, right),
+            Div(left, right) => write!(f, "({:?} / {:?})", left, right),
+            Pow(left, right) => write!(f, "({:?} ^ {:?})", left, right),
+            Neg(arg) => write!(f, "(-{:?})", arg),
+            Ln(arg) => write!(f, "ln({:?})", arg),
             Var(name) => write!(f, "{}", name),
             Const(val) => write!(f, "{}", val),
         }

@@ -5,8 +5,8 @@ mod expression;
 
 fn main() {
     use Expr::*;
-    let expr = Add(Box::new(Var("x".to_owned())), Box::new(Const(3.0)));
-    println!("{}", expr);
-    println!("{}", expr.reduce());
-    println!("{}", expr.derive("x").reduce());
+    let expr = Pow(Box::new(Var("x".to_owned())), Box::new(Const(2.0))) + Var("x".to_owned());
+    println!("{:?}", expr);
+    println!("{:?}", expr.reduce());
+    println!("{:?}", expr.derive("x").reduce());
 }
