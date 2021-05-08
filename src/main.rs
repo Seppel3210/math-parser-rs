@@ -1,15 +1,17 @@
 #![feature(box_patterns)]
-use expression::Expr;
 
 mod expression;
 mod lexer;
+mod parser;
+
+use lexer::Lexer;
+use parser::Parser;
 
 fn main() {
-    use Expr::*;
-    let expr = Pow(Box::new(Var("x".to_owned())), Box::new(Const(2.0))) + Var("x".to_owned());
+    let expr = Parser::new(&Lexer::new("22/7").tokens().unwrap())
+        .expression()
+        .unwrap();
     println!("{:?}", expr);
     println!("{:?}", expr.reduce());
     println!("{:?}", expr.derive("x").reduce());
-    let tokens = lexer::Lexer::new("(dctie+ - 03.32 ) *").tokens();
-    println!("{:?}", tokens);
 }

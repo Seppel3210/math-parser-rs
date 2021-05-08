@@ -1,6 +1,7 @@
 use std::fmt;
 use std::{fmt::Debug, iter::Peekable, str::Chars};
 
+#[derive(Clone)]
 pub struct Token {
     pub(crate) lexeme: String,
     pub(crate) position: (usize, usize),
@@ -31,7 +32,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TokenType {
     LeftParen,
     RightParen,
