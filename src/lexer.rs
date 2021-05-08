@@ -2,9 +2,9 @@ use std::fmt;
 use std::{fmt::Debug, iter::Peekable, str::Chars};
 
 pub struct Token {
-    lexeme: String,
-    position: (usize, usize),
-    kind: TokenType,
+    pub(crate) lexeme: String,
+    pub(crate) position: (usize, usize),
+    pub(crate) kind: TokenType,
 }
 
 impl Debug for Token {
@@ -31,7 +31,7 @@ impl Token {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum TokenType {
     LeftParen,
     RightParen,
@@ -78,15 +78,18 @@ impl<'a> Lexer<'a> {
         while let Some('0'..='9') = self.peek() {
             lexeme.push(self.consume());
         }
-        if let [Some('.'), Some('0'..='9')] = [self.advance(), self.peek().copied()] {
+        if let Some('.') = self.peek() {
             lexeme.push(self.consume());
-            lexeme.push(self.consume());
-            while let Some('0'..='9') = self.peek() {
+            if let Some('0'..='9') = self.peek() {
                 lexeme.push(self.consume());
+                while let Some('0'..='9') = self.peek() {
+                    lexeme.push(self.consume());
+                }
+            } else {
+                return Err(self.err('.'));
             }
-        } else {
-            return Err(self.err('.'));
         }
+
         Ok(Token::new(lexeme, self.start_pos, TokenType::Number))
     }
 
