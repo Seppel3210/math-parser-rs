@@ -34,6 +34,10 @@ impl Expr {
         match (left.reduce(), right.reduce()) {
             (Const(z), other) if z == 0.0 => other,
             (other, Const(z)) if z == 0.0 => other,
+            (Const(c1), Add(box Const(c2), box right)) => Const(c1 + c2) + right,
+            (Const(c1), Add(box right, box Const(c2))) => Const(c1 + c2) + right,
+            (Add(box Const(c1), box left), Const(c2)) => left + Const(c1 + c2),
+            (Add(box left, box Const(c1)), Const(c2)) => left + Const(c1 + c2),
             (Const(left), Const(right)) => Const(left + right),
             (left, right) => left + right,
         }
@@ -50,6 +54,10 @@ impl Expr {
         match (left.reduce(), right.reduce()) {
             (Const(z), _) if z == 0.0 => Const(0.0),
             (_, Const(z)) if z == 0.0 => Const(0.0),
+            (Const(c1), Mul(box Const(c2), box right)) => Const(c1 * c2) * right,
+            (Const(c1), Mul(box right, box Const(c2))) => Const(c1 * c2) * right,
+            (Mul(box Const(c1), box left), Const(c2)) => left * Const(c1 * c2),
+            (Mul(box left, box Const(c1)), Const(c2)) => left * Const(c1 * c2),
             (Const(left), Const(right)) => Const(left * right),
             (left, right) => left * right,
         }
