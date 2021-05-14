@@ -1,4 +1,4 @@
-use std::{iter::Peekable, slice::Iter};
+use std::{error::Error, fmt, iter::Peekable, slice::Iter};
 
 use crate::expression::Expr::*;
 use crate::{expression::Expr, lexer::Token, lexer::TokenType};
@@ -89,17 +89,17 @@ impl<'a> Parser<'a> {
             Number => Ok(Const(token.lexeme.parse().unwrap())),
             Ident => Ok(Var(token.lexeme.clone())),
             LeftParen => {
-                let expr = self.expression();
+                let expr = self.expression()?;
                 let paren = self.next().ok_or(UnexpectedEof)?;
                 if paren.kind != RightParen {
                     Err(Other(format!(
-                        "Expected ')' after expression at {}:{}",
+                        "expected ')' after expression at {}:{}",
                         paren.position.0, paren.position.1
                     )))?
                 }
-                expr
+                Ok(expr)
             }
-            _ => Err(UnexpectedToken(Some(token.clone()))),
+            _ => Err(UnexpectedToken(token.clone())),
         }
     }
 
@@ -118,7 +118,23 @@ impl<'a> Parser<'a> {
 
 #[derive(Debug)]
 pub enum ParseError {
-    UnexpectedToken(Option<Token>),
+    UnexpectedToken(Token),
     UnexpectedEof,
     Other(String),
 }
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnexpectedToken(t) => write!(
+                f,
+                "unexpected token: {:?} at {}:{}",
+                t.kind, t.position.0, t.position.1
+            ),
+            UnexpectedEof => write!(f, "unexpected EOF"),
+            Other(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+impl Error for ParseError {}

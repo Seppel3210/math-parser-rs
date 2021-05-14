@@ -4,6 +4,9 @@ pub mod expression;
 mod lexer;
 mod parser;
 
+use std::error;
+use std::fmt;
+
 use expression::Expr;
 use lexer::{LexError, Lexer};
 use parser::ParseError;
@@ -16,8 +19,8 @@ pub fn parse(source: &str) -> Result<Expr, Error> {
 
 #[derive(Debug)]
 pub enum Error {
-    ParseError(ParseError),
     LexError(LexError),
+    ParseError(ParseError),
 }
 
 impl From<ParseError> for Error {
@@ -25,8 +28,20 @@ impl From<ParseError> for Error {
         Error::ParseError(err)
     }
 }
+
 impl From<LexError> for Error {
     fn from(err: LexError) -> Self {
         Error::LexError(err)
     }
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LexError(err) => write!(f, "error while lexing: {}", err),
+            Self::ParseError(err) => write!(f, "error while parsing: {}", err),
+        }
+    }
+}
+
+impl error::Error for Error {}

@@ -1,5 +1,5 @@
-use std::fmt;
-use std::{fmt::Debug, iter::Peekable, str::Chars};
+use std::{error::Error, fmt};
+use std::{iter::Peekable, str::Chars};
 
 #[derive(Clone)]
 pub struct Token {
@@ -8,7 +8,7 @@ pub struct Token {
     pub kind: TokenType,
 }
 
-impl Debug for Token {
+impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -153,3 +153,15 @@ pub struct LexError {
     unexpected: char,
     position: (usize, usize),
 }
+
+impl fmt::Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "unexpected char '{}' at {}:{}",
+            self.unexpected, self.position.0, self.position.1
+        )
+    }
+}
+
+impl Error for LexError {}
