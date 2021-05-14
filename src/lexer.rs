@@ -3,9 +3,9 @@ use std::{fmt::Debug, iter::Peekable, str::Chars};
 
 #[derive(Clone)]
 pub struct Token {
-    pub(crate) lexeme: String,
-    pub(crate) position: (usize, usize),
-    pub(crate) kind: TokenType,
+    pub lexeme: String,
+    pub position: (usize, usize),
+    pub kind: TokenType,
 }
 
 impl Debug for Token {
