@@ -14,7 +14,18 @@ pub enum Expr {
     Const(f64),
 }
 
+#[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Copy)]
+pub enum Precedence {
+    Lowest,
+    Sum,
+    Product,
+    Power,
+    PowerLeft,
+    Highest,
+}
+
 use Expr::*;
+use Precedence::*;
 
 impl Expr {
     pub fn reduce(&self) -> Expr {
@@ -111,8 +122,8 @@ impl Expr {
             Pow(box left, box right) => {
                 (right.derive(var_name) * Ln(Box::new(left.clone())) * self.clone())
                     + (right
-                        * &left.derive(var_name)
-                        * Pow(Box::new(left.clone()), Box::new(right - &Const(1.0))))
+                    * &left.derive(var_name)
+                    * Pow(Box::new(left.clone()), Box::new(right - &Const(1.0))))
             }
             Neg(box arg) => -arg.derive(var_name),
             Var(name) if name == var_name => Const(1.0),
@@ -134,6 +145,71 @@ impl Expr {
             Neg(arg) => -arg.substitute(var_name, expr),
             Ln(arg) => Ln(Box::new(arg.substitute(var_name, expr))),
             Var(_) | Const(_) => self.clone(),
+        }
+    }
+
+    pub fn pretty_print(&self, outer_precedence: Precedence, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let this_precedence = self.precedence();
+        if outer_precedence > this_precedence {
+            write!(f, "(")?;
+        }
+
+        match self {
+            Add(left, right) => {
+                left.pretty_print(this_precedence, f)?;
+                write!(f, " + ")?;
+                right.pretty_print(this_precedence, f)?;
+            }
+            Sub(left, right) => {
+                left.pretty_print(this_precedence, f)?;
+                write!(f, " - ")?;
+                right.pretty_print(this_precedence, f)?;
+            }
+            Mul(left, right) => {
+                left.pretty_print(this_precedence, f)?;
+                write!(f, " * ")?;
+                right.pretty_print(this_precedence, f)?;
+            }
+            Div(left, right) => {
+                left.pretty_print(this_precedence, f)?;
+                write!(f, " / ")?;
+                right.pretty_print(this_precedence, f)?;
+            }
+            Pow(left, right) => {
+                left.pretty_print(PowerLeft, f)?;
+                write!(f, " ^ ")?;
+                right.pretty_print(Power, f)?;
+            }
+            Neg(arg) => arg.pretty_print(this_precedence, f)?,
+            Ln(arg) => {
+                if self.precedence() > arg.precedence() {
+                    write!(f, "ln")?;
+                } else {
+                    write!(f, "ln ")?;
+
+                }
+                arg.pretty_print(self.precedence(), f)?;
+            }
+            Var(name) => write!(f, "{}", name)?,
+            Const(val) => write!(f, "{}", val)?,
+        }
+        if outer_precedence > this_precedence {
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+
+    fn precedence(&self) -> Precedence {
+        match self {
+            Add(_, _) => Sum,
+            Sub(_, _) => Sum,
+            Mul(_, _) => Product,
+            Div(_, _) => Product,
+            Pow(_, _) => Power,
+            Neg(_) => Highest,
+            Ln(_) => Highest,
+            Var(_) => Highest,
+            Const(_) => Highest,
         }
     }
 }
@@ -205,6 +281,13 @@ impl Neg for &Expr {
     type Output = Expr;
     fn neg(self) -> Self::Output {
         Expr::Neg(Box::new(self.clone()))
+    }
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.pretty_print(Lowest, f)?;
+        Ok(())
     }
 }
 

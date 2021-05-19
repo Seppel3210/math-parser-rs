@@ -46,8 +46,8 @@ fn main() {
 }
 
 fn expression_menu(mut expr: Expr, actions: &HashMap<&str, Box<dyn Fn(Expr) -> Expr>>) {
-    println!("{:?}", expr);
     loop {
+        println!("{}", expr);
         println!(
             r#"actions: {:?} or "exit" to type another expression"#,
             actions.keys()
@@ -63,7 +63,6 @@ fn expression_menu(mut expr: Expr, actions: &HashMap<&str, Box<dyn Fn(Expr) -> E
                 continue;
             }
         }
-        println!("{:?}", expr);
     }
 }
 
