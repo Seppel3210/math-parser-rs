@@ -53,6 +53,9 @@ fn expression_menu(mut expr: Expr, actions: &HashMap<&str, Box<dyn Fn(Expr) -> E
             actions.keys()
         );
         let action_name = input("");
+        if action_name.trim() == "exit" {
+            return;
+        }
         match actions.get(action_name.trim()) {
             Some(f) => expr = f(expr),
             None => {

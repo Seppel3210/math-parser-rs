@@ -54,6 +54,8 @@ impl Expr {
         match (left.reduce(), right.reduce()) {
             (Const(z), _) if z == 0.0 => Const(0.0),
             (_, Const(z)) if z == 0.0 => Const(0.0),
+            (Const(one), other) if one == 1.0 => other,
+            (other, Const(one)) if one == 1.0 => other,
             (Const(c1), Mul(box Const(c2), box right)) => Const(c1 * c2) * right,
             (Const(c1), Mul(box right, box Const(c2))) => Const(c1 * c2) * right,
             (Mul(box Const(c1), box left), Const(c2)) => left * Const(c1 * c2),
@@ -83,6 +85,7 @@ impl Expr {
     fn reduce_ln(arg: &Expr) -> Expr {
         match arg.reduce() {
             Const(arg) => Const(arg.ln()),
+            Var(s) if s == "e" => Const(1.0),
             arg => Ln(Box::new(arg)),
         }
     }
