@@ -1,5 +1,5 @@
 use core::fmt;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops;
 
 #[derive(Clone)]
 pub enum Expr {
@@ -24,10 +24,11 @@ pub enum Precedence {
     Highest,
 }
 
-use Expr::*;
-use Precedence::*;
+use Expr::{Add, Const, Div, Ln, Mul, Neg, Pow, Sub, Var};
+use Precedence::{Highest, Lowest, Power, PowerLeft, Product, Sum};
 
 impl Expr {
+    #[must_use]
     pub fn reduce(&self) -> Expr {
         match self {
             Add(box left, box right) => Expr::reduce_add(left, right),
@@ -43,12 +44,14 @@ impl Expr {
 
     fn reduce_add(left: &Expr, right: &Expr) -> Expr {
         match (left.reduce(), right.reduce()) {
-            (Const(z), other) if z == 0.0 => other,
-            (other, Const(z)) if z == 0.0 => other,
-            (Const(c1), Add(box Const(c2), box right)) => Const(c1 + c2) + right,
-            (Const(c1), Add(box right, box Const(c2))) => Const(c1 + c2) + right,
-            (Add(box Const(c1), box left), Const(c2)) => left + Const(c1 + c2),
-            (Add(box left, box Const(c1)), Const(c2)) => left + Const(c1 + c2),
+            (Const(z), other) if (z - 0.0).abs() < f64::EPSILON => other,
+            (other, Const(z)) if (z - 0.0).abs() < f64::EPSILON => other,
+            (Const(c1), Add(box Const(c2), box right) | Add(box right, box Const(c2))) => {
+                Const(c1 + c2) + right
+            }
+            (Add(box Const(c1), box left) | Add(box left, box Const(c1)), Const(c2)) => {
+                left + Const(c1 + c2)
+            }
             (Const(left), Const(right)) => Const(left + right),
             (left, right) => left + right,
         }
@@ -63,14 +66,16 @@ impl Expr {
 
     fn reduce_mul(left: &Expr, right: &Expr) -> Expr {
         match (left.reduce(), right.reduce()) {
-            (Const(z), _) if z == 0.0 => Const(0.0),
-            (_, Const(z)) if z == 0.0 => Const(0.0),
-            (Const(one), other) if one == 1.0 => other,
-            (other, Const(one)) if one == 1.0 => other,
-            (Const(c1), Mul(box Const(c2), box right)) => Const(c1 * c2) * right,
-            (Const(c1), Mul(box right, box Const(c2))) => Const(c1 * c2) * right,
-            (Mul(box Const(c1), box left), Const(c2)) => left * Const(c1 * c2),
-            (Mul(box left, box Const(c1)), Const(c2)) => left * Const(c1 * c2),
+            (Const(z), _) if (z - 0.0).abs() < f64::EPSILON => Const(0.0),
+            (_, Const(z)) if (z - 0.0).abs() < f64::EPSILON => Const(0.0),
+            (Const(one), other) if (one - 1.0).abs() < f64::EPSILON => other,
+            (other, Const(one)) if (one - 1.0).abs() < f64::EPSILON => other,
+            (Const(c1), Mul(box Const(c2), box right) | Mul(box right, box Const(c2))) => {
+                Const(c1 * c2) * right
+            }
+            (Mul(box Const(c1), box left) | Mul(box left, box Const(c1)), Const(c2)) => {
+                left * Const(c1 * c2)
+            }
             (Const(left), Const(right)) => Const(left * right),
             (left, right) => left * right,
         }
@@ -85,9 +90,9 @@ impl Expr {
 
     fn reduce_pow(left: &Expr, right: &Expr) -> Expr {
         match (left.reduce(), right.reduce()) {
-            (_, Const(z)) if z == 0.0 => Const(1.0),
-            (Const(z), _) if z == 0.0 => Const(0.0),
-            (left, Const(x)) if x == 1.0 => left,
+            (_, Const(z)) if (z - 0.0).abs() < f64::EPSILON => Const(1.0),
+            (Const(z), _) if (z - 0.0).abs() < f64::EPSILON => Const(0.0),
+            (left, Const(x)) if (x - 1.0).abs() < f64::EPSILON => left,
             (Const(left), Const(right)) => Const(left.powf(right)),
             (left, right) => Pow(Box::new(left), Box::new(right)),
         }
@@ -108,6 +113,7 @@ impl Expr {
         }
     }
 
+    #[must_use]
     pub fn derive(&self, var_name: &str) -> Expr {
         match self {
             Add(left, right) => left.derive(var_name) + right.derive(var_name),
@@ -122,8 +128,8 @@ impl Expr {
             Pow(box left, box right) => {
                 (right.derive(var_name) * Ln(Box::new(left.clone())) * self.clone())
                     + (right
-                    * &left.derive(var_name)
-                    * Pow(Box::new(left.clone()), Box::new(right - &Const(1.0))))
+                        * &left.derive(var_name)
+                        * Pow(Box::new(left.clone()), Box::new(right - &Const(1.0))))
             }
             Neg(box arg) => -arg.derive(var_name),
             Var(name) if name == var_name => Const(1.0),
@@ -132,6 +138,7 @@ impl Expr {
         }
     }
 
+    #[must_use]
     pub fn substitute(&self, var_name: &str, expr: &Expr) -> Expr {
         match self {
             Add(left, right) => left.substitute(var_name, expr) + right.substitute(var_name, expr),
@@ -148,7 +155,11 @@ impl Expr {
         }
     }
 
-    pub fn pretty_print(&self, outer_precedence: Precedence, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn pretty_print(
+        &self,
+        outer_precedence: Precedence,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         let this_precedence = self.precedence();
         if outer_precedence > this_precedence {
             write!(f, "(")?;
@@ -186,7 +197,6 @@ impl Expr {
                     write!(f, "ln")?;
                 } else {
                     write!(f, "ln ")?;
-
                 }
                 arg.pretty_print(self.precedence(), f)?;
             }
@@ -201,83 +211,78 @@ impl Expr {
 
     fn precedence(&self) -> Precedence {
         match self {
-            Add(_, _) => Sum,
-            Sub(_, _) => Sum,
-            Mul(_, _) => Product,
-            Div(_, _) => Product,
+            Add(_, _) | Sub(_, _) => Sum,
+            Mul(_, _) | Div(_, _) => Product,
             Pow(_, _) => Power,
-            Neg(_) => Highest,
-            Ln(_) => Highest,
-            Var(_) => Highest,
-            Const(_) => Highest,
+            Neg(_) | Ln(_) | Var(_) | Const(_) => Highest,
         }
     }
 }
 
-impl Add for Expr {
+impl ops::Add for Expr {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
         Expr::Add(Box::new(self), Box::new(rhs))
     }
 }
 
-impl Add for &Expr {
+impl ops::Add for &Expr {
     type Output = Expr;
     fn add(self, rhs: Self) -> Self::Output {
         Expr::Add(Box::new(self.clone()), Box::new(rhs.clone()))
     }
 }
 
-impl Sub for Expr {
+impl ops::Sub for Expr {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         Expr::Sub(Box::new(self), Box::new(rhs))
     }
 }
 
-impl Sub for &Expr {
+impl ops::Sub for &Expr {
     type Output = Expr;
     fn sub(self, rhs: Self) -> Self::Output {
         Expr::Sub(Box::new(self.clone()), Box::new(rhs.clone()))
     }
 }
 
-impl Mul for Expr {
+impl ops::Mul for Expr {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
         Expr::Mul(Box::new(self), Box::new(rhs))
     }
 }
 
-impl Mul for &Expr {
+impl ops::Mul for &Expr {
     type Output = Expr;
     fn mul(self, rhs: Self) -> Self::Output {
         Expr::Mul(Box::new(self.clone()), Box::new(rhs.clone()))
     }
 }
 
-impl Div for Expr {
+impl ops::Div for Expr {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
         Expr::Div(Box::new(self), Box::new(rhs))
     }
 }
 
-impl Div for &Expr {
+impl ops::Div for &Expr {
     type Output = Expr;
     fn div(self, rhs: Self) -> Self::Output {
         Expr::Div(Box::new(self.clone()), Box::new(rhs.clone()))
     }
 }
 
-impl Neg for Expr {
+impl ops::Neg for Expr {
     type Output = Self;
     fn neg(self) -> Self::Output {
         Expr::Neg(Box::new(self))
     }
 }
 
-impl Neg for &Expr {
+impl ops::Neg for &Expr {
     type Output = Expr;
     fn neg(self) -> Self::Output {
         Expr::Neg(Box::new(self.clone()))

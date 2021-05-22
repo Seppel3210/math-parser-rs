@@ -108,7 +108,7 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn tokens(&mut self) -> Result<Vec<Token>, LexError> {
-        use TokenType::*;
+        use TokenType::{Caret, Eof, LeftParen, Minus, Plus, RightParen, Slash, Star};
         let mut tokens = vec![];
         while let Some(c) = self.peek().copied() {
             self.start_pos = self.current_pos;
@@ -132,7 +132,7 @@ impl<'a> Lexer<'a> {
                     self.consume();
                     continue;
                 }
-                _ => Err(self.err(c))?,
+                _ => return Err(self.err(c)),
             };
             tokens.push(token);
         }

@@ -1,9 +1,9 @@
 use std::{error::Error, fmt, iter::Peekable, slice::Iter};
 
-use crate::expression::Expr::*;
+use crate::expression::Expr::{Const, Ln, Pow, Var};
 use crate::{expression::Expr, lexer::Token, lexer::TokenType};
-use ParseError::*;
-use TokenType::*;
+use ParseError::{Other, UnexpectedEof, UnexpectedToken};
+use TokenType::{Caret, FnLn, Ident, LeftParen, Minus, Number, Plus, RightParen, Slash, Star};
 
 pub struct Parser<'a> {
     tokens: Peekable<Iter<'a, Token>>,
@@ -92,10 +92,10 @@ impl<'a> Parser<'a> {
                 let expr = self.expression()?;
                 let paren = self.next().ok_or(UnexpectedEof)?;
                 if paren.kind != RightParen {
-                    Err(Other(format!(
+                    return Err(Other(format!(
                         "expected ')' after expression at {}:{}",
                         paren.position.0, paren.position.1
-                    )))?
+                    )));
                 }
                 Ok(expr)
             }

@@ -1,4 +1,6 @@
 #![feature(box_patterns)]
+#![warn(clippy::all)]
+#![warn(clippy::pedantic)]
 
 pub mod expression;
 mod lexer;
@@ -12,6 +14,10 @@ use lexer::{LexError, Lexer};
 use parser::ParseError;
 use parser::Parser;
 
+/// Parse the math expression passed in as a string
+/// # Errors
+/// this function errors if there is an error while parsing the string
+/// i.e. a lex error or parse error
 pub fn parse(source: &str) -> Result<Expr, Error> {
     let mut lexer = Lexer::new(source);
     Ok(Parser::new(lexer.tokens()?.as_slice()).expression()?)
