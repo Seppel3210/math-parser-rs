@@ -15,21 +15,28 @@ fn main() {
     actions.insert(
         "substitute",
         Box::new(|expr: Expr| {
-            let var_name = input("wich variable? ");
-            let input = input("with wich expression? ");
+            let var_name = input("which variable? ");
+            let input = input("with which expression? ");
             let expr2 = loop {
                 match math_parser::parse(&input) {
                     Ok(expr) => break expr,
                     Err(err) => {
-                        println!("{}", err);
+                        println!("{:?}", err);
                         continue;
                     }
                 };
             };
             expr.substitute(var_name.trim(), &expr2)
-        }) as Box<dyn Fn(_) -> _>,
+        })
     );
     actions.insert("reduce", Box::new(|expr: Expr| expr.reduce()));
+    actions.insert(
+        "dbg",
+        Box::new(|expr: Expr| {
+            println!("{:?}", expr);
+            expr
+        }),
+    );
 
     println!("math_parser CLI\n(c) Sebastian Widua 2021");
     loop {
@@ -37,7 +44,7 @@ fn main() {
         let expr = match math_parser::parse(&input) {
             Ok(expr) => expr,
             Err(err) => {
-                println!("{}", err);
+                println!("{:?}", err);
                 continue;
             }
         };

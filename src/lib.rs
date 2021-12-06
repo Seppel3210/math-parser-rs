@@ -3,51 +3,86 @@
 #![warn(clippy::pedantic)]
 
 pub mod expression;
-mod lexer;
 mod parser;
 
-use std::error;
-use std::fmt;
-
+use chumsky::Error;
 use expression::Expr;
-use lexer::{LexError, Lexer};
-use parser::ParseError;
-use parser::Parser;
+
+use chumsky::prelude::*;
 
 /// Parse the math expression passed in as a string
 /// # Errors
 /// this function errors if there is an error while parsing the string
-/// i.e. a lex error or parse error
-pub fn parse(source: &str) -> Result<Expr, Error> {
-    let mut lexer = Lexer::new(source);
-    Ok(Parser::new(lexer.tokens()?.as_slice()).expression()?)
-}
+pub fn parse(source: &str) -> Result<Expr, Vec<Simple<char>>> {
+    let expr = recursive(|expr| {
+        let num = text::digits(10)
+            .chain::<char, _, _>(just('.').chain(text::digits(10)).or_not().flatten())
+            .collect::<String>()
+            .map(|s| Expr::Const(s.parse().unwrap()));
 
-#[derive(Debug)]
-pub enum Error {
-    LexError(LexError),
-    ParseError(ParseError),
-}
+        let ident = text::ident().padded();
 
-impl From<ParseError> for Error {
-    fn from(err: ParseError) -> Self {
-        Error::ParseError(err)
-    }
-}
+        let var = ident.map(Expr::Var);
 
-impl From<LexError> for Error {
-    fn from(err: LexError) -> Self {
-        Error::LexError(err)
-    }
-}
+        let atom = num.or(var).or(expr.delimited_by('(', ')'));
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::LexError(err) => write!(f, "error while lexing: {}", err),
-            Self::ParseError(err) => write!(f, "error while parsing: {}", err),
-        }
-    }
-}
+        let call = ident
+            .then(atom.clone())
+            .try_map(|(name, arg), span| {
+                if name == "ln" {
+                    Ok(Expr::Ln(Box::new(arg)))
+                } else {
+                    Err(Error::expected_input_found(
+                        span,
+                        "ln".chars(),
+                        name.chars().next(),
+                    ))
+                }
+            })
+            .or(atom);
 
-impl error::Error for Error {}
+        let op = |c| just(c).padded();
+
+        let pow = recursive(|pow| {
+            call.clone()
+                .then(op('^').ignore_then(pow).or_not())
+                .map(|(lhs, rhs)| {
+                    if let Some(rhs) = rhs {
+                        Expr::Pow(Box::new(lhs), Box::new(rhs))
+                    } else {
+                        lhs
+                    }
+                })
+        });
+
+        let unary = op('-')
+            .repeated()
+            .then(pow)
+            .foldr(|_, rhs| Expr::Neg(Box::new(rhs)));
+
+        let product = unary
+            .clone()
+            .then(
+                op('*')
+                    .to(Expr::Mul as fn(_, _) -> _)
+                    .or(op('/').to(Expr::Mul as fn(_, _) -> _))
+                    .then(unary)
+                    .repeated(),
+            )
+            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+
+        let sum = product
+            .clone()
+            .then(
+                op('+')
+                    .to(Expr::Add as fn(_, _) -> _)
+                    .or(op('-').to(Expr::Sub as fn(_, _) -> _))
+                    .then(product)
+                    .repeated(),
+            )
+            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+
+        sum.padded()
+    });
+    expr.then_ignore(end()).parse(source)
+}
