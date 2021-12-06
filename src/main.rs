@@ -27,7 +27,7 @@ fn main() {
                 };
             };
             expr.substitute(var_name.trim(), &expr2)
-        })
+        }),
     );
     actions.insert("reduce", Box::new(|expr: Expr| expr.reduce()));
     actions.insert(

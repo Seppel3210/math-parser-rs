@@ -57,19 +57,22 @@ pub fn parse(source: &str) -> Result<Expr, Vec<Simple<char>>> {
 
         let unary = op('-')
             .repeated()
-            .then(pow)
+            .then(pow.clone())
             .foldr(|_, rhs| Expr::Neg(Box::new(rhs)));
 
-        let product = unary
-            .clone()
-            .then(
-                op('*')
-                    .to(Expr::Mul as fn(_, _) -> _)
-                    .or(op('/').to(Expr::Mul as fn(_, _) -> _))
-                    .then(unary)
-                    .repeated(),
-            )
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+        let product = num
+            .then(pow)
+            .map(|(lhs, rhs)| Expr::Mul(Box::new(lhs), Box::new(rhs)))
+            .or(unary
+                .clone()
+                .then(
+                    op('*')
+                        .to(Expr::Mul as fn(_, _) -> _)
+                        .or(op('/').to(Expr::Mul as fn(_, _) -> _))
+                        .then(unary)
+                        .repeated(),
+                )
+                .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs))));
 
         let sum = product
             .clone()
