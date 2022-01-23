@@ -3,7 +3,6 @@
 #![warn(clippy::pedantic)]
 
 pub mod expression;
-mod parser;
 
 use chumsky::Error;
 use expression::Expr;
